@@ -1,5 +1,7 @@
 import pygame
 import math
+import sys
+import os
 
 pygame.init()
 
@@ -12,18 +14,26 @@ canvas.fill("white")
 # ------------------------------
 # CARREGAR ICONES
 # ------------------------------
+def caminho_recurso(rel_path):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, rel_path)
 
-icone_reta = pygame.image.load("icons/reta.png")
-icone_circulo = pygame.image.load("icons/circulo.png")
-icone_livre = pygame.image.load("icons/livre.png")
-icone_limpar = pygame.image.load("icons/delete.png")
-icone_subtela = pygame.image.load("icons/subtela.png")
-icone_cor = pygame.image.load("icons/color.png")
+icone_reta = pygame.image.load(caminho_recurso("icons/reta.png"))
+icone_circulo = pygame.image.load(caminho_recurso("icons/circulo.png"))
+icone_livre = pygame.image.load(caminho_recurso("icons/livre.png"))
+icone_limpar = pygame.image.load(caminho_recurso("icons/delete.png"))
+icone_subtela = pygame.image.load(caminho_recurso("icons/subtela.png"))
+icone_cor = pygame.image.load(caminho_recurso("icons/color.png"))
+icone_transform = pygame.image.load(caminho_recurso("icons/transform.png"))
 
 icone_reta = pygame.transform.scale(icone_reta, (24, 24))
 icone_circulo = pygame.transform.scale(icone_circulo, (24, 24))
 icone_livre = pygame.transform.scale(icone_livre, (24, 24))
 icone_limpar = pygame.transform.scale(icone_limpar, (24, 24))
+icone_transform = pygame.transform.scale(icone_transform, (24, 24))
 
 
 # ------------------------------
@@ -67,6 +77,129 @@ class Botao:
 # ------------------------------
 # ALGORITMOS
 # ------------------------------
+
+def get_placeholder():
+
+    if tipo_transformacao == "translacao":
+        return "ex: 50,30"
+
+    elif tipo_transformacao == "escala":
+        return "ex: 2,2"
+
+    elif tipo_transformacao == "rotacao":
+        return "ex: 45°"
+
+    elif tipo_transformacao == "reflexao":
+        return "ex: x ou y ou xy"
+
+    return ""
+def redesenhar_canvas():
+
+    canvas.fill("white")
+
+    for reta in retas:
+
+        v1 = (round(reta["v1"][0]), round(reta["v1"][1]))
+        v2 = (round(reta["v2"][0]), round(reta["v2"][1]))
+
+        if reta["tipo"] == "reta":
+            if algoritmo_reta == "dda":
+                dda(v1, v2)
+
+            else:
+                bres_generico(v1, v2)
+
+        elif reta["tipo"] == "circulo":
+            bres_circun(v1, v2)
+
+def aplicar_transformacao():
+    global retas
+
+    try:
+        # centro da tela (ponto de referência)
+        cx = screen.get_width() / 2
+        cy = screen.get_height() / 2
+
+        for reta in retas:
+
+            x1, y1 = reta["v1"]
+            x2, y2 = reta["v2"]
+
+            # -------------------------
+            # 1. MOVER PARA ORIGEM
+            # -------------------------
+            x1 -= cx
+            y1 -= cy
+            x2 -= cx
+            y2 -= cy
+
+            # -------------------------
+            # 2. APLICAR TRANSFORMAÇÃO
+            # -------------------------
+
+            if tipo_transformacao == "translacao":
+
+                dx, dy = map(float, input_texto.split(","))
+                x1 += dx
+                y1 += dy
+                x2 += dx
+                y2 += dy
+
+            elif tipo_transformacao == "escala":
+
+                sx, sy = map(float, input_texto.split(","))
+                x1 *= sx
+                y1 *= sy
+                x2 *= sx
+                y2 *= sy
+
+            elif tipo_transformacao == "rotacao":
+
+                ang = math.radians(float(input_texto))
+
+                nx1 = x1 * math.cos(ang) - y1 * math.sin(ang)
+                ny1 = x1 * math.sin(ang) + y1 * math.cos(ang)
+
+                nx2 = x2 * math.cos(ang) - y2 * math.sin(ang)
+                ny2 = x2 * math.sin(ang) + y2 * math.cos(ang)
+
+                x1, y1 = nx1, ny1
+                x2, y2 = nx2, ny2
+
+            elif tipo_transformacao == "reflexao":
+
+                modo = input_texto.lower()
+
+                if modo == "x":
+                    y1 = -y1
+                    y2 = -y2
+
+                elif modo == "y":
+                    x1 = -x1
+                    x2 = -x2
+
+                elif modo == "xy":
+                    x1 = -x1
+                    y1 = -y1
+                    x2 = -x2
+                    y2 = -y2
+
+            # -------------------------
+            # 3. VOLTAR PARA TELA
+            # -------------------------
+            x1 += cx
+            y1 += cy
+            x2 += cx
+            y2 += cy
+
+            reta["v1"] = (x1, y1)
+            reta["v2"] = (x2, y2)
+
+    except Exception as e:
+        print(f"Erro na transformação: {e}")
+        return
+
+    redesenhar_canvas()
 
 def colorir_simetricos(a, b, xc, yc, cor):
     canvas.set_at((a + xc, b + yc), cor)
@@ -200,10 +333,11 @@ def aplicar_clipping():
         x1,y1 = reta["v1"]
         x2,y2 = reta["v2"]
 
-        if algoritmo_janela == "cohen":
-            cohen_sutherland(x1,y1,x2,y2)
-        else:
-            lian_barsky(x1,y1,x2,y2)
+        if reta["tipo"] == "reta":
+            if algoritmo_janela == "cohen":
+                cohen_sutherland(x1,y1,x2,y2)
+            else:
+                lian_barsky(x1,y1,x2,y2)
 
 def get_codigo(x,y):
 
@@ -311,9 +445,6 @@ def cliptest(p,q, u):
 
     return resultado
 
-
-
-
 def lian_barsky(x1,y1,x2,y2):
 
     u = [0.0 , 1] # u1 e u2, python nao tem ponteiro
@@ -353,14 +484,21 @@ retas = []
 vertices = []
 cor = "black"
 
+input_ativo = False
+input_texto = ""
+
 ferramenta = "livre"
 algoritmo_reta = "dda"
 algoritmo_janela = "cohen"
+tipo_transformacao = "rotacao"
 
+menu_transforme = False
 menu_reta = False
 menu_janela= False
+
 pos_anterior = None
 clipping_window = None
+
 
 # ------------------------------
 # BOTÕES
@@ -374,15 +512,22 @@ btn_circulo = Botao(160, 10, 50, 50, icone_circulo)
 btn_livre = Botao(230, 10, 50, 50, icone_livre)
 btn_subtela = Botao(300, 10, 50, 50, icone_subtela)
 btn_limpar = Botao(370, 10, 50, 50, icone_limpar)
+btn_transforme = Botao(440, 10, 50, 50, icone_transform)
 
 
-btn_dda = Botao(90, 70, 80, 40)
-btn_bres = Botao(90, 115, 80, 40)
-btn_lian = Botao(300, 70, 80, 40)
-btn_cohen = Botao(300, 115, 80, 40)
+btn_dda = Botao(90, 75, 80, 40)
+btn_bres = Botao(90, 120, 80, 40)
+
+btn_lian = Botao(300, 75, 80, 40)
+btn_cohen = Botao(300, 120, 80, 40)
+
+btn_translacao = Botao(440, 75, 100, 40)
+btn_escala = Botao(440, 120, 100, 40)
+btn_rotacao = Botao(440, 165, 100, 40)
+btn_reflexao = Botao(440, 210, 100, 40)
 
 fonte = pygame.font.SysFont("Arial", 16)
-
+transform_rect = pygame.Rect(btn_transforme.rect.right + 10, 15, 160, 35)
 # ------------------------------
 # LOOP
 # ------------------------------
@@ -400,52 +545,87 @@ while running:
     btn_limpar.hover_check(mouse)
     btn_cor.hover_check(mouse)
     btn_subtela.hover_check(mouse)
+    btn_transforme.hover_check(mouse)
+
     btn_dda.hover_check(mouse)
     btn_bres.hover_check(mouse)
+
     btn_lian.hover_check(mouse)
     btn_cohen.hover_check(mouse)
+
+    btn_translacao.hover_check(mouse)
+    btn_rotacao.hover_check(mouse)
+    btn_escala.hover_check(mouse)
+    btn_reflexao.hover_check(mouse)
+
 
     for event in pygame.event.get():
 
         if event.type == pygame.QUIT:
             running = False
 
+        if event.type == pygame.KEYDOWN and input_ativo:
+            menu_transforme = False
+            if event.key == pygame.K_RETURN:
+
+                aplicar_transformacao()
+
+
+            elif event.key == pygame.K_BACKSPACE:
+
+                input_texto = input_texto[:-1]
+
+            else:
+
+                input_texto += event.unicode
+
         if event.type == pygame.MOUSEBUTTONDOWN:
 
             # CLIQUE NO MENU
             if menu.collidepoint(event.pos):
 
-                # if btn_cor.clicado(event.pos):
-                #     #logica de cor
-                #
-
                 if btn_reta.clicado(event.pos):
                     ferramenta = "reta"
                     menu_reta = not menu_reta
                     menu_janela = False
+                    menu_transforme = False
+                    input_ativo = False
 
                 elif btn_circulo.clicado(event.pos):
                     ferramenta = "circulo"
                     menu_reta = False
                     menu_janela = False
+                    menu_transforme = False
+                    input_ativo = False
 
                 elif btn_livre.clicado(event.pos):
                     ferramenta = "livre"
                     menu_reta = False
                     menu_janela = False
-
+                    menu_transforme = False
+                    input_ativo = False
 
                 elif btn_subtela.clicado(event.pos):
                     ferramenta = "subtela"
                     menu_reta = False
                     menu_janela = not menu_janela
+                    menu_transforme = False
+                    input_ativo = False
 
                 elif btn_limpar.clicado(event.pos):
                     canvas.fill("white")
                     clipping_window = None
                     menu_reta = False
                     menu_janela = False
+                    menu_transforme = False
+                    input_ativo = False
                     retas.clear()
+
+                elif btn_transforme.clicado(event.pos):
+                    ferramenta = "transforme"
+                    menu_reta = False
+                    menu_janela = False
+                    menu_transforme = not menu_transforme
 
                 vertices.clear()
                 continue
@@ -458,10 +638,12 @@ while running:
                     menu_reta = False
                     continue
 
+
                 if btn_bres.clicado(event.pos):
                     algoritmo_reta = "bres"
                     menu_reta = False
                     continue
+                vertices.clear()
 
             # MENU DE ALGORITMO JANELA
             if menu_janela:
@@ -475,6 +657,36 @@ while running:
                     algoritmo_janela = "lian"
                     menu_janela = False
                     continue
+                vertices.clear()
+
+
+
+            # MENU DE ALGORITMO TRANSFORMAÇÃO
+            if menu_transforme:
+
+                if btn_translacao.clicado(event.pos):
+
+                    tipo_transformacao = "translacao"
+                    input_texto = ""
+                    input_ativo = True
+
+                elif btn_escala.clicado(event.pos):
+
+                    tipo_transformacao = "escala"
+                    input_texto = ""
+                    input_ativo = True
+
+                elif btn_rotacao.clicado(event.pos):
+
+                    tipo_transformacao = "rotacao"
+                    input_texto = ""
+                    input_ativo = True
+
+                elif btn_reflexao.clicado(event.pos):
+
+                    tipo_transformacao = "reflexao"
+                    input_texto = ""
+                    input_ativo = True
 
             # AREA DE DESENHO
             if ferramenta != "livre":
@@ -483,12 +695,13 @@ while running:
 
                 if len(vertices) == 2:
 
-                    reta = {
-                        "v1": vertices[0],
-                        "v2": vertices[1]
-                    }
-
                     if ferramenta == "reta":
+
+                        reta = {
+                            "v1": vertices[0],
+                            "v2": vertices[1],
+                            "tipo": "reta"
+                        }
 
                         retas.append(reta) # Salva as coordenadas
                         if clipping_window is not None:
@@ -505,6 +718,13 @@ while running:
                                 bres_generico(vertices[0], vertices[1], cor)
 
                     elif ferramenta == "circulo":
+
+                        reta = {
+                            "v1": vertices[0],
+                            "v2": vertices[1],
+                            "tipo": "circulo"
+                        }
+
                         retas.append(reta)  # Salva as coordenadas
                         bres_circun(vertices[0], vertices[1], cor)
 
@@ -537,6 +757,9 @@ while running:
     btn_livre.desenhar(screen, ferramenta == "livre")
     btn_subtela.desenhar(screen, ferramenta == "subtela")
     btn_limpar.desenhar(screen)
+    btn_transforme.desenhar(screen, ferramenta == "transforme" )
+
+
 
 
     if menu_reta:
@@ -572,6 +795,32 @@ while running:
             2
         )
 
+    if menu_transforme:
+        btn_translacao.desenhar(screen, tipo_transformacao == "translacao")
+        btn_escala.desenhar(screen, tipo_transformacao == "escala")
+        btn_rotacao.desenhar(screen, tipo_transformacao == "rotacao")
+        btn_reflexao.desenhar(screen, tipo_transformacao == "reflexao")
+
+        txt5 = fonte.render("Trans", True, (255, 255, 255))
+        txt6 = fonte.render("Escala", True, (255, 255, 255))
+        txt7 = fonte.render("Rotação", True, (255, 255, 255))
+        txt8 = fonte.render("Reflex", True, (255, 255, 255))
+
+        screen.blit(txt5, txt5.get_rect(center=btn_translacao.rect.center))
+        screen.blit(txt6, txt6.get_rect(center=btn_escala.rect.center))
+        screen.blit(txt7, txt7.get_rect(center=btn_rotacao.rect.center))
+        screen.blit(txt8, txt8.get_rect(center=btn_reflexao.rect.center))
+
+    if input_ativo:
+        pygame.draw.rect(screen, (255, 255, 255), transform_rect)
+        pygame.draw.rect(screen, (0, 0, 0), transform_rect, 2)
+
+        if input_texto == "":
+            placeholder = fonte.render(get_placeholder(), True, (180, 180, 180))
+            screen.blit(placeholder, (transform_rect.x + 8, transform_rect.y + 8))
+        else:
+            texto = fonte.render(input_texto, True, (0, 0, 0))
+            screen.blit(texto, (transform_rect.x + 8, transform_rect.y + 8))
     # ------------------------------
     # DESENHO LIVRE
     # ------------------------------
